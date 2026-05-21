@@ -1,6 +1,15 @@
-# Japan Asset Reporting (財産債務調書)
+# Japan Asset Reporting (財産債務調書 / 国外財産調書)
 
-Fills the NTA forms **FA6103** (財産債務調書) and **FA6003** (財産債務調書合計表) from two CSV files. Outputs print-ready PDFs.
+Fills four NTA forms from two CSV files and outputs print-ready PDFs:
+
+| File | Form | Description |
+|------|------|-------------|
+| `FA6103-filled.pdf` | FA6103 | 財産債務調書（明細） |
+| `FA6003-filled.pdf` | FA6003 | 財産債務調書合計表 |
+| `FA5003-detail-filled.pdf` | FA5003 | 国外財産調書（明細） |
+| `FA5003-summary-filled.pdf` | FA5003合計表 | 国外財産調書合計表 |
+
+Assets with `fa6103_group=overseas` appear on the FA6103 as a single 国外財産 line and are expanded to individual rows on the FA5003 detail form.
 
 ## Requirements
 

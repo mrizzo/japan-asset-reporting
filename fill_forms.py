@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
 Japan Tax Form Filler
-Fills FA6103 (財産債務調書) and FA6003 (財産債務調書合計表) from CSV inputs.
+Fills FA6103/FA6003 (財産債務調書) and FA5003 (国外財産調書) from CSV inputs.
 
 Usage:
     python fill_forms.py                           # assets.csv + config.csv in same dir
     python fill_forms.py assets.csv config.csv     # explicit paths
 
-Output: output/FA6103-filled.pdf and output/FA6003-filled.pdf
+Output: output/FA6103-filled.pdf, output/FA6003-filled.pdf,
+        output/FA5003-detail-filled.pdf, output/FA5003-summary-filled.pdf
 """
 
 import csv
@@ -25,8 +26,11 @@ from pypdf import PdfReader, PdfWriter
 
 SCRIPT_DIR   = Path(__file__).parent
 ALR_DIR      = SCRIPT_DIR / "asset-report-forms" / "ALR"
+OAR_DIR      = SCRIPT_DIR / "asset-report-forms" / "OAR"
 FA6103_BLANK = ALR_DIR / "FA6103-zaisan-saimu-detail-FILLABLE.pdf"
 FA6003_BLANK = ALR_DIR / "FA6003-zaisan-saimu-goukei-hyo-FILLABLE.pdf"
+FA5003D_BLANK = OAR_DIR / "FA5003-kokugai-zaisan-detail-FILLABLE.pdf"
+FA5003S_BLANK = OAR_DIR / "FA5003-kokugai-zaisan-goukei-hyo-FILLABLE.pdf"
 FONT_NAME   = "JP"
 _FONT_CANDIDATES = [
     "/Library/Fonts/Arial Unicode.ttf",           # macOS + Office
@@ -97,6 +101,29 @@ ASSET_CFG = {
 USE_CODES = {
     "residential": "居", "living": "生", "personal": "自",
     "investment":  "投", "business": "事",
+}
+
+# Maps asset_type → FA5003 summary line (①-㉕).  Same numbering as FA6003 lines 1-25.
+# The OAR form has no dedicated 暗号資産 row; crypto/pension/other → line 24 (その他).
+ASSET_FA5003_LINE = {
+    "land":             "1",
+    "building":         "2",
+    "forest":           "3",
+    "cash":             "4",
+    "savings":          "5",
+    "listed_stock":     "6",
+    "unlisted_stock":   "7",
+    "bond":             "8",
+    "investment_trust": "8",
+    "loan_receivable":  "13",
+    "accrued_income":   "14",
+    "art":              "15",
+    "precious_metal":   "16",
+    "vehicle":          "17",
+    "life_insurance":   "18",
+    "crypto":           "24",
+    "pension":          "24",
+    "other":            "24",
 }
 
 # ── FA6103 coordinates (derived from zaisan_saimu_detail-filled.pdf) ──────────
@@ -171,6 +198,89 @@ FA6003_POS = {
     "28": (x(399.4), y(538.0)),   # 国外転出特例（エ）
     "29": (x(399.4), y(562.3)),   # 国外転出特例合計
     "33": (x(399.4), y(679.1)),   # 債務の金額の合計額
+}
+
+# ── FA5003 detail coordinates ─────────────────────────────────────────────────
+# OAR forms share the same page size (649.50 × 814.79) as ALR forms.
+# Annotation Rect values are in PDF bottom-origin coords = reportlab coords directly.
+# (No affine transform needed; we're reading field positions from the blank itself.)
+
+FA5003D_ROW_Y0 = 542.205   # reportlab y of bottom edge of first (top) data row
+FA5003D_ROW_DY = 29.138    # subtract per row to move down the page
+FA5003D_ROWS   = 15        # rows per page
+
+FA5003D_COL = {
+    "type":     87.9,   # 区分
+    "kind":    139.9,   # 種類
+    "use":     223.5,   # 用途
+    "country": 251.3,   # 国名
+    "location":293.2,   # 所在
+    "quantity":409.1,   # 数量
+    "amount":  450.2,   # 価額 (upper sub-row x)
+    "acq":     450.9,   # 取得価額 (lower sub-row x)
+    "notes":   534.5,   # 備考
+}
+FA5003D_UPPER_DY = 19.2  # offset above row y_bottom for 価額 text baseline
+FA5003D_LOWER_DY =  4.6  # offset above row y_bottom for 取得価額 text baseline
+FA5003D_TEXT_DY  = 10.0  # offset above row y_bottom for main cell text baseline
+
+FA5003D_HDR = {
+    "year_x":    207.8, "year_y":    712.0,  # 令和○年分
+    "address_x": 268.3, "address_y": 686.0,  # 住所
+    "name_x":    266.9, "name_y":    635.0,  # 氏名
+    "mynum_x":   270.9, "mynum_y":   606.2,  # 個人番号
+    "phone1_x":  462.2, "phone_y":   605.9,  # 電話
+    "phone2_x":  504.3,
+    "phone3_x":  545.0,
+}
+
+# ── FA5003 summary coordinates ─────────────────────────────────────────────────
+# Field positions: (x_left, y_bottom) in reportlab coords. Draw at x+2, y+6.
+
+FA5003S_POS = {
+    # Left column (x_left = 172.51)
+    "1":  (172.51, 507.65),  # ① 土地
+    "2":  (172.51, 484.74),  # ② 建物
+    "3":  (172.51, 461.83),  # ③ 山林
+    "4":  (172.51, 438.92),  # ④ 現金
+    "5":  (172.51, 415.36),  # ⑤ 預貯金
+    "6":  (172.51, 391.79),  # ⑥ 上場株式
+    "7":  (172.51, 345.97),  # ⑦ 非上場株式
+    "8":  (172.51, 298.85),  # ⑧ 株式以外の有価証券
+    "9":  (172.51, 252.37),  # ⑨ 特定有価証券
+    "10": (172.51, 229.46),  # ⑩ 匿名組合
+    "11": (172.51, 182.34),  # ⑪ 未決済信用取引
+    # Right column (x_left = 424.51)
+    "12": (424.51, 507.65),  # ⑫ 未決済デリバティブ
+    "13": (424.51, 462.48),  # ⑬ 貸付金
+    "14": (424.51, 438.26),  # ⑭ 未収入金
+    "15": (424.51, 416.01),  # ⑮ 書画骨とう
+    "16": (424.51, 391.79),  # ⑯ 貴金属
+    "17": (424.51, 368.23),  # ⑰ 動産
+    "18": (424.51, 345.32),  # ⑱ 保険
+    "19": (424.51, 322.41),  # ⑲ 株式権利
+    "20": (424.51, 298.85),  # ⑳ 預託金
+    "21": (424.51, 275.94),  # ㉑ 組合
+    "22": (424.51, 252.37),  # ㉒ 信託
+    "23": (424.51, 229.46),  # ㉓ 無体財産権
+    "24": (424.51, 205.90),  # ㉔ その他の財産
+    "25": (424.51, 182.34),  # ㉕ 合計額
+}
+
+FA5003S_HDR = {
+    "year_x":       180.9, "year_y":       724.9,  # 令和○年分
+    "address_x":    123.8, "address_y":    669.0,  # 住所
+    "furigana_x":   349.1, "furigana_y":   677.4,  # フリガナ
+    "name_x":       349.1, "name_y":       646.8,  # 氏名
+    "mynum_x":      349.1, "mynum_y":      699.9,  # 個人番号
+    "occupation_x": 467.3, "occupation_y": 571.1,  # 職業
+    "phone1_x":     480.8, "phone_y":      615.5,  # 電話
+    "phone2_x":     514.9,
+    "phone3_x":     548.9,
+    "dob_era_x":    340.8, "dob_y":        593.3,
+    "dob_year_x":   362.6,
+    "dob_mon_x":    397.5,
+    "dob_day_x":    432.4,
 }
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -305,6 +415,39 @@ def build_fa6003_totals(assets, overseas_total):
     totals["33"] = 0  # no debt
     return totals
 
+def build_fa5003_rows(assets):
+    """Return one detail row per overseas asset for the FA5003 調書."""
+    rows = []
+    for a in assets:
+        if a.get("fa6103_group", "").strip() != "overseas":
+            continue
+        atype = a["asset_type"]
+        _, ja, default_use = ASSET_CFG.get(atype, ("25", atype, "投"))
+        use_raw = a.get("use", "").strip()
+        use = USE_CODES.get(use_raw, use_raw[:1] if use_raw else default_use)
+        rows.append({
+            "type":       ASSET_FA5003_LINE.get(atype, "24"),
+            "kind":       ja,                                   # Japanese type label
+            "use":        use,
+            "country":    a.get("location", "").strip(),
+            "location":   a.get("description", "").strip(),     # account/asset name
+            "quantity":   a.get("quantity", "").strip(),
+            "amount_jpy": a["jpy_amount"],
+            "notes":      a.get("notes", "")[:8].strip(),       # 備考 column is narrow
+        })
+    return rows
+
+def build_fa5003_totals(assets):
+    """Sum overseas assets by FA5003 line number; compute grand total (line 25)."""
+    totals = defaultdict(int)
+    for a in assets:
+        if a.get("fa6103_group", "").strip() != "overseas":
+            continue
+        line = ASSET_FA5003_LINE.get(a["asset_type"], "24")
+        totals[line] += a["jpy_amount"]
+    totals["25"] = sum(v for k, v in totals.items() if k != "25")
+    return totals
+
 # ── PDF overlay ────────────────────────────────────────────────────────────────
 
 def make_overlay(draw_fn):
@@ -431,6 +574,73 @@ def draw_fa6003(c, cfg, totals):
         if val:
             c.drawString(px, py, fmt(val))
 
+# ── FA5003 detail drawing ──────────────────────────────────────────────────────
+
+def draw_fa5003_detail(c, cfg, rows):
+    h = FA5003D_HDR
+    c.setFont(FONT_NAME, 9)
+    c.drawString(h["year_x"], h["year_y"], cfg.get("year", "07"))
+
+    c.setFont(FONT_NAME, 7)
+    c.drawString(h["address_x"], h["address_y"], cfg.get("address_1", ""))
+    c.drawString(h["name_x"],    h["name_y"],    cfg.get("name_katakana", ""))
+
+    mn = cfg.get("my_number", "").replace(" ", "").replace("-", "")
+    c.drawString(h["mynum_x"], h["mynum_y"], mn)
+    c.drawString(h["phone1_x"], h["phone_y"], cfg.get("phone_1", ""))
+    c.drawString(h["phone2_x"], h["phone_y"], cfg.get("phone_2", ""))
+    c.drawString(h["phone3_x"], h["phone_y"], cfg.get("phone_3", ""))
+
+    col = FA5003D_COL
+    for i, row in enumerate(rows[:FA5003D_ROWS]):
+        y_bot   = FA5003D_ROW_Y0 - i * FA5003D_ROW_DY
+        y_main  = y_bot + FA5003D_TEXT_DY
+        y_upper = y_bot + FA5003D_UPPER_DY
+
+        c.setFont(FONT_NAME, 7)
+        c.drawString(col["type"],     y_main, row["type"])
+        c.drawString(col["kind"],     y_main, row["kind"])
+        c.drawString(col["use"],      y_main, row["use"])
+        c.drawString(col["country"],  y_main, row["country"])
+        c.drawString(col["location"], y_main, row.get("location", ""))
+        c.drawString(col["quantity"], y_main, row["quantity"])
+        if row.get("notes"):
+            c.drawString(col["notes"], y_main, row["notes"])
+
+        c.setFont(FONT_NAME, 8)
+        c.drawString(col["amount"], y_upper, fmt(row["amount_jpy"]))
+
+# ── FA5003 summary drawing ─────────────────────────────────────────────────────
+
+def draw_fa5003_summary(c, cfg, totals):
+    h = FA5003S_HDR
+    c.setFont(FONT_NAME, 9)
+    c.drawString(h["year_x"], h["year_y"], cfg.get("year", "07"))
+
+    c.setFont(FONT_NAME, 7)
+    c.drawString(h["address_x"],    h["address_y"],    cfg.get("address_1", ""))
+    c.drawString(h["furigana_x"],   h["furigana_y"],   cfg.get("furigana", ""))
+    c.drawString(h["name_x"],       h["name_y"],       cfg.get("name_katakana", ""))
+    c.drawString(h["occupation_x"], h["occupation_y"], cfg.get("occupation", ""))
+    c.drawString(h["phone1_x"],     h["phone_y"],      cfg.get("phone_1", ""))
+    c.drawString(h["phone2_x"],     h["phone_y"],      cfg.get("phone_2", ""))
+    c.drawString(h["phone3_x"],     h["phone_y"],      cfg.get("phone_3", ""))
+
+    mn = cfg.get("my_number", "").replace(" ", "").replace("-", "")
+    c.drawString(h["mynum_x"], h["mynum_y"], mn)
+
+    dy, dx = h["dob_y"], 13.3
+    c.drawString(h["dob_era_x"],  dy, cfg.get("dob_era",   ""))
+    draw_spaced(c, h["dob_year_x"], dy, dx, str(cfg.get("dob_year",  "")).zfill(2))
+    draw_spaced(c, h["dob_mon_x"],  dy, dx, str(cfg.get("dob_month", "")).zfill(2))
+    draw_spaced(c, h["dob_day_x"],  dy, dx, str(cfg.get("dob_day",   "")).zfill(2))
+
+    c.setFont(FONT_NAME, 8)
+    for line, (px, py) in FA5003S_POS.items():
+        val = totals.get(line, 0)
+        if val:
+            c.drawString(px + 2, py + 6, fmt(val))
+
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def main():
@@ -471,6 +681,31 @@ def main():
     overlay = make_overlay(lambda c: draw_fa6003(c, cfg, totals))
     result  = apply_overlay(FA6003_BLANK, overlay)
     out     = out_dir / "FA6003-filled.pdf"
+    out.write_bytes(result.read())
+    print(f"✓  {out}")
+
+    # ── FA5003 detail ────────────────────────────────────────────────────────────
+    oar_rows = build_fa5003_rows(assets)
+    print(f"\nFA5003  detail  ({len(oar_rows)} rows)")
+    for r in oar_rows:
+        print(f"  [{r['type']:>2}]  {r['kind']:<30}  {r['use']}  {r['country']:<5}  {fmt_jp(r['amount_jpy'])}")
+
+    overlay = make_overlay(lambda c: draw_fa5003_detail(c, cfg, oar_rows))
+    result  = apply_overlay(FA5003D_BLANK, overlay)
+    out     = out_dir / "FA5003-detail-filled.pdf"
+    out.write_bytes(result.read())
+    print(f"✓  {out}")
+
+    # ── FA5003 summary ───────────────────────────────────────────────────────────
+    oar_totals = build_fa5003_totals(assets)
+    print(f"\nFA5003  summary  totals")
+    for line in sorted(oar_totals, key=lambda x: int(x)):
+        if oar_totals[line]:
+            print(f"  line {line:>2}  {fmt_jp(oar_totals[line])}")
+
+    overlay = make_overlay(lambda c: draw_fa5003_summary(c, cfg, oar_totals))
+    result  = apply_overlay(FA5003S_BLANK, overlay)
+    out     = out_dir / "FA5003-summary-filled.pdf"
     out.write_bytes(result.read())
     print(f"✓  {out}")
 
