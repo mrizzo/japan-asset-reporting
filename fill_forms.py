@@ -103,6 +103,28 @@ USE_CODES = {
     "investment":  "投", "business": "事",
 }
 
+# More specific sub-type label for the 種類 column on FA6103
+ASSET_SUBTYPE = {
+    "land":             "土地",
+    "building":         "建物",
+    "forest":           "山林",
+    "cash":             "現金",
+    "savings":          "普通預金",
+    "listed_stock":     "上場株式",
+    "unlisted_stock":   "非上場株式",
+    "bond":             "公社債",
+    "investment_trust": "投資信託",
+    "loan_receivable":  "貸付金",
+    "accrued_income":   "未収入金",
+    "art":              "書画骨董",
+    "precious_metal":   "貴金属",
+    "vehicle":          "自動車",
+    "life_insurance":   "保険契約権利",
+    "crypto":           "暗号資産",
+    "pension":          "個人年金",
+    "other":            "その他",
+}
+
 # Maps asset_type → FA5003 summary line (①-㉕).  Same numbering as FA6003 lines 1-25.
 # The OAR form has no dedicated 暗号資産 row; crypto/pension/other → line 24 (その他).
 ASSET_FA5003_LINE = {
@@ -140,7 +162,7 @@ FA6103_HDR = {
 
 FA6103_ROW_Y0  = y(254.1)      # first row text baseline
 FA6103_ROW_DY  = 24.05 * A    # row spacing scaled to blank page
-FA6103_AMT_DY  = -10.1 * A    # amount offset scaled
+FA6103_AMT_DY  = -5.5 * A     # amount offset scaled (lower sub-row, raised from bottom)
 
 FA6103_COL = {
     "type":     x(59.2),
@@ -228,7 +250,7 @@ FA5003D_HDR = {
     "year_x":    207.8, "year_y":    712.0,  # 令和○年分
     "address_x": 268.3, "address_y": 686.0,  # 住所
     "name_x":    266.9, "name_y":    635.0,  # 氏名
-    "mynum_x":   270.9, "mynum_y":   606.2,  # 個人番号
+    "mynum_x":   269.9, "mynum_y":   605.2,  "mynum_dx": 14.0,  # 個人番号 (12 boxes)
     "phone1_x":  462.2, "phone_y":   605.9,  # 電話
     "phone2_x":  504.3,
     "phone3_x":  545.0,
@@ -269,11 +291,13 @@ FA5003S_POS = {
 
 FA5003S_HDR = {
     "year_x":       180.9, "year_y":       724.9,  # 令和○年分
+    "postal_x":     132.1, "postal_y":     700.2,  "postal_dx":  13.5,  # 〒 3-digit
+    "postal_x2":    181.5,                                               # 4-digit
     "address_x":    123.8, "address_y":    669.0,  # 住所
-    "furigana_x":   349.1, "furigana_y":   677.4,  # フリガナ
+    "furigana_x":   349.1, "furigana_y":   677.4,  "furigana_dx": 13.8,  # フリガナ (per-box)
     "name_x":       349.1, "name_y":       646.8,  # 氏名
-    "mynum_x":      349.1, "mynum_y":      699.9,  # 個人番号
-    "occupation_x": 467.3, "occupation_y": 571.1,  # 職業
+    "mynum_x":      348.1, "mynum_y":      698.9,  "mynum_dx": 13.8,   # 個人番号 (12 boxes)
+    "occupation_x": 347.3, "occupation_y": 615.5,  # 職業
     "phone1_x":     480.8, "phone_y":      615.5,  # 電話
     "phone2_x":     514.9,
     "phone3_x":     548.9,
@@ -378,22 +402,22 @@ def build_fa6103_rows(assets):
 
         rows.append({
             "kind":       ja,
+            "subtype":    ASSET_SUBTYPE.get(atype, ja),
             "use":        use,
             "location":   first.get("location", "").strip(),
             "quantity":   qty,
             "amount_jpy": total,
-            "notes":      first.get("notes", "").strip(),
             "asset_type": atype,
         })
 
     if overseas_total:
         rows.append({
             "kind":       "国外財産",
+            "subtype":    "",
             "use":        "投",
             "location":   "米国等",
             "quantity":   "一式",
             "amount_jpy": overseas_total,
-            "notes":      "国外財",
             "asset_type": "overseas",
         })
 
@@ -503,13 +527,12 @@ def draw_fa6103(c, cfg, rows, overseas_total):
         y_amt  = y_text + FA6103_AMT_DY
 
         c.setFont(FONT_NAME, 7)
-        c.drawString(col["type"],     y_text, "資産")
-        c.drawString(col["kind"],     y_text, row["kind"])
+        c.drawString(col["type"],     y_text, row["kind"])
+        c.drawString(col["kind"],     y_text, row["subtype"])
         c.drawString(col["use"],      y_text, row["use"])
         c.drawString(col["location"], y_text, row["location"])
         c.drawString(col["quantity"], y_text, row["quantity"])
-        if row.get("notes"):
-            c.drawString(col["notes"], y_text, row["notes"])
+        # 備考 left blank — fill by hand if needed
 
         c.setFont(FONT_NAME, 8)
         c.drawString(col["amount"], y_amt, fmt(row["amount_jpy"]))
@@ -586,7 +609,7 @@ def draw_fa5003_detail(c, cfg, rows):
     c.drawString(h["name_x"],    h["name_y"],    cfg.get("name_katakana", ""))
 
     mn = cfg.get("my_number", "").replace(" ", "").replace("-", "")
-    c.drawString(h["mynum_x"], h["mynum_y"], mn)
+    draw_spaced(c, h["mynum_x"], h["mynum_y"], h["mynum_dx"], mn)
     c.drawString(h["phone1_x"], h["phone_y"], cfg.get("phone_1", ""))
     c.drawString(h["phone2_x"], h["phone_y"], cfg.get("phone_2", ""))
     c.drawString(h["phone3_x"], h["phone_y"], cfg.get("phone_3", ""))
@@ -618,16 +641,22 @@ def draw_fa5003_summary(c, cfg, totals):
     c.drawString(h["year_x"], h["year_y"], cfg.get("year", "07"))
 
     c.setFont(FONT_NAME, 7)
-    c.drawString(h["address_x"],    h["address_y"],    cfg.get("address_1", ""))
-    c.drawString(h["furigana_x"],   h["furigana_y"],   cfg.get("furigana", ""))
-    c.drawString(h["name_x"],       h["name_y"],       cfg.get("name_katakana", ""))
+    postal = cfg.get("postal_code", "").replace("-", "")
+    draw_spaced(c, h["postal_x"],  h["postal_y"], h["postal_dx"], postal[:3])
+    draw_spaced(c, h["postal_x2"], h["postal_y"], h["postal_dx"], postal[3:])
+
+    c.drawString(h["address_x"], h["address_y"], cfg.get("address_1", ""))
+    draw_spaced(c, h["furigana_x"], h["furigana_y"], h["furigana_dx"], cfg.get("furigana", ""))
+    c.setFont(FONT_NAME, 8)
+    c.drawString(h["name_x"],     h["name_y"],     cfg.get("name_katakana", ""))
+    c.setFont(FONT_NAME, 7)
     c.drawString(h["occupation_x"], h["occupation_y"], cfg.get("occupation", ""))
     c.drawString(h["phone1_x"],     h["phone_y"],      cfg.get("phone_1", ""))
     c.drawString(h["phone2_x"],     h["phone_y"],      cfg.get("phone_2", ""))
     c.drawString(h["phone3_x"],     h["phone_y"],      cfg.get("phone_3", ""))
 
     mn = cfg.get("my_number", "").replace(" ", "").replace("-", "")
-    c.drawString(h["mynum_x"], h["mynum_y"], mn)
+    draw_spaced(c, h["mynum_x"], h["mynum_y"], h["mynum_dx"], mn)
 
     dy, dx = h["dob_y"], 13.3
     c.drawString(h["dob_era_x"],  dy, cfg.get("dob_era",   ""))
