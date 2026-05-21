@@ -1,0 +1,5 @@
+assets.csv
+config.csv
+output/
+*.pdf
+!Asset-Report-blanks/**/*.pdf

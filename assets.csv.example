@@ -1,0 +1,16 @@
+# fa6003_line: override the FA6003 summary line number. Leave blank to use the default for the asset_type.
+# FA6003 lines: 1=土地 2=建物 3=山林 4=現金 5=預貯金 6=上場株式 7=非上場株式 8=株式以外有価証券
+#               9=特定有価証券 10=匿名組合出資 11=未決済信用取引 12=未決済デリバティブ 13=貸付金 14=未収入金
+#              15=書画骨董 16=貴金属 17=動産 18=保険契約権利 19=株式権利 20=預託金 21=組合出資
+#              22=信託権利 23=無体財産権 24=暗号資産 25=その他 26=国外財産合計 27=財産合計
+#              30=借入金 31=未払金 32=その他債務 33=債務合計
+asset_type,description,location,currency,amount,quantity,use,notes,fa6103_group,fa6003_line
+building,Shinjuku Residence,東京都新宿区,JPY,80000000,1,residential,売買契約価格,building,
+savings,SMBC Savings,日本,JPY,5000000,1口座,living,,savings_jp,
+savings,Yucho Bank,日本,JPY,1000000,1口座,living,,savings_jp,
+vehicle,2020 Toyota Prius,日本,JPY,2000000,1,personal,,vehicles_jp,
+crypto,Crypto Assets,自己管理,JPY,1000000,一式,investment,,crypto_jp,24
+savings,Bank of America Checking,USA,USD,10000,1口座,living,,overseas,
+listed_stock,Schwab Brokerage,USA,USD,100000,1,investment,,overseas,
+pension,Schwab Rollover IRA,USA,USD,50000,1,investment,,overseas,
+land,California Land,USA,USD,200000,1,investment,APN 000-000-000,overseas,
