@@ -1,3 +1,4 @@
+import os
 import sys
 import zipfile
 import tempfile
@@ -8,12 +9,13 @@ from io import BytesIO
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import fill_forms as ff
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, Form, UploadFile, HTTPException
 from fastapi.responses import StreamingResponse, HTMLResponse
 
 app = FastAPI()
 
 _INDEX = Path(__file__).parent / "static" / "index.html"
+_ACCESS_CODE = os.environ.get("ACCESS_CODE", "")  # set this env var in production
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -25,7 +27,10 @@ async def index():
 async def generate(
     assets_csv: UploadFile = File(...),
     config_csv: UploadFile = File(...),
+    passcode: str = Form(default=""),
 ):
+    if _ACCESS_CODE and passcode != _ACCESS_CODE:
+        raise HTTPException(status_code=402, detail="Invalid passcode")
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
 
