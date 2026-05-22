@@ -4,4 +4,4 @@ output/
 .venv/
 __pycache__/
 *.pdf
-!Asset-Report-blanks/**/*.pdf
+!asset-report-forms/**/*.pdf

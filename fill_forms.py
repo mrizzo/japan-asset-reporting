@@ -33,9 +33,9 @@ FA5003D_BLANK = OAR_DIR / "FA5003-kokugai-zaisan-detail-FILLABLE.pdf"
 FA5003S_BLANK = OAR_DIR / "FA5003-kokugai-zaisan-goukei-hyo-FILLABLE.pdf"
 FONT_NAME   = "JP"
 _FONT_CANDIDATES = [
-    "/Library/Fonts/Arial Unicode.ttf",           # macOS + Office
-    "/System/Library/Fonts/NotoSansCJK-Regular.ttc",
-    "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",  # Linux
+    "/Library/Fonts/Arial Unicode.ttf",                                    # macOS + Office
+    "/usr/share/fonts/opentype/ipaexfont-gothic/ipaexg.ttf",              # Docker / Linux apt
+    "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",                  # Linux apt (Noto)
     "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
 ]
 FONT_PATH = next((p for p in _FONT_CANDIDATES if Path(p).exists()), None)
